@@ -1,12 +1,18 @@
 from flask import Flask, request, jsonify, session
 from flask_restx import Api, Resource, fields
+from flask_cors import CORS  # Importa CORS
 import firebase_admin
 from firebase_admin import credentials, firestore, auth, storage
 from werkzeug.utils import secure_filename
 import logging
+
 #Inicializar la app de Flask
 app = Flask(__name__)
 app.secret_key = '121003'
+
+# Configurar CORS
+CORS(app, resources={r"/*": {"origins": "http://localhost:3000", "supports_credentials": True}})
+
 #Inicializar API con Flask-RESTX
 api = Api(app, version='1.0', title='Bienes Raices API', 
           description='API para gestionar bienes raíces, usuarios y boletas', 
