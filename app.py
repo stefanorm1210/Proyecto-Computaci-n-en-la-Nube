@@ -60,10 +60,10 @@ class Login(Resource):
             user_data = db.collection('user').document(user.uid).get()
 
             if user_data.exists:
-
-                
-                tipo_usuario = user_data.to_dict().get('tipo_usuario')
-                return{"message": "Inicio de sesion exitoso", "email": email, "tipo_usuario":tipo_usuario}, 201
+                user_info = user_data.to_dict()
+                nombre_completo = user_info.get('nombre_completo')
+                tipo_usuario = user_info.get('tipo_usuario')
+                return{"message": "Inicio de sesion exitoso", "email": email,"nombre_completo":nombre_completo ,"tipo_usuario":tipo_usuario}, 201
             else:
                 return {"error": "El usuario no tiene datos adicionales"}, 404
         except Exception as e:
@@ -75,20 +75,23 @@ class Signup(Resource):
     @api.expect(api.model('Signup', {
         'email': fields.String(required=True, description='Correo Electrónico del usuario'),
         'password': fields.String(required=True, description='Contraseña del usuario'),
+        'nombre_completo': fields.String(required=True, description='Nombre completo del usuario'),
         'tipo_usuario': fields.String(required=True, description='Tipo de usuario vendedor o comprador')
     }))
     def post(self):
         email = request.json.get('email')
         password = request.json.get('password')
+        nombre_completo = request.json.get('nombre_completo')
         tipo_usuario = request.json.get('tipo_usuario')
 
         if tipo_usuario not in ['vendedor', 'comprador']:
-            return {"error": "Rl tipo de usuario debe ser 'vendedor' o 'comprador'"}, 400
+            return {"error": "El tipo de usuario debe ser 'vendedor' o 'comprador'"}, 400
         try:
             user = auth.create_user(email=email, password=password)
 
             db.collection('user').document(user.uid).set({
                 'email':email,
+                'nombre_completo': nombre_completo,
                 'tipo_usuario':tipo_usuario
             })
             session['user_id'] = user.uid
