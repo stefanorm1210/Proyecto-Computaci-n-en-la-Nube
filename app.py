@@ -85,7 +85,7 @@ class Signup(Resource):
         try:
             user = auth.create_user(email=email, password=password)
 
-            db.collection('usuer').document(user.uid).set({
+            db.collection('user').document(user.uid).set({
                 'email':email,
                 'tipo_usuario':tipo_usuario
             })
