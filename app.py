@@ -20,7 +20,7 @@ api = Api(app, version='1.0', title='Bienes Raices API',
 
 #Inicializar Firebase
 
-cred = credentials.Certificate('config/bienesraicesapp-2082b-firebase-adminsdk-ouekj-94145224b4.json')
+cred = credentials.Certificate('config/bienesraicesapp-2082b-firebase-adminsdk-ouekj-8cc7711eb0.json')
 firebase_admin.initialize_app(cred, {'storageBucket':'firebase-adminsdk-ouekj@bienesraicesapp-2082b.iam.gserviceaccount.com'})
 
 #Inicializar Firestore
