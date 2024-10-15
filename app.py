@@ -27,6 +27,7 @@ firebase_admin.initialize_app(cred, {'storageBucket':'gs://bienesraicesapp-2082b
 #Inicializar Firestore
 db = firestore.client()
 bucket = storage.bucket('bienesraicesapp-2082b.appspot.com')
+bucket_name = 'bienesraicesapp-2082b.appspot.com'
 # Configuración de logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -38,7 +39,7 @@ bien_raiz_model = api.model('BienRaiz', {
     'descripcion': fields.String(required=True, description='Descripción del bien raíz'),  # Nueva descripción
     'habitaciones': fields.Integer(required=True, description='Cantidad de habitaciones'),  # Nueva propiedad
     'banos': fields.Integer(required=True, description='Cantidad de baños'),  # Nueva propiedad
-    'imagen_url': fields.String(description='URL de la imagen del bien raíz')  # Campo existente
+    'imagen_url': fields.String(required=False, description='URL de la imagen del bien raíz')  # Campo existente
 })
 
 boleta_model = api.model('Boleta', {
@@ -114,7 +115,7 @@ class BienesRaices(Resource):
     bien_raiz_parser.add_argument('descripcion', type=str, required=True, help='Descripción del bien raíz')
     bien_raiz_parser.add_argument('habitaciones', type=int, required=True, help='Cantidad de habitaciones')
     bien_raiz_parser.add_argument('banos', type=int, required=True, help='Cantidad de baños')
-    bien_raiz_parser.add_argument('imagen', type=FileStorage, location='files' ,required=True, help='Imagen del bien raíz')
+    bien_raiz_parser.add_argument('imagen', type=FileStorage, location='files', required=True, help='Imagen del bien raíz')
 
     @api.marshal_list_with(bien_raiz_model)
     @api.doc(description="Obtener todos los bienes raíces")
@@ -125,7 +126,15 @@ class BienesRaices(Resource):
         for doc in docs:
             bien = doc.to_dict()
             bien['id'] = doc.id
-            bienes_raices.append(bien)
+            bienes_raices.append({
+                'nombre': bien.get('nombre', 'No disponible'),
+                'precio': bien.get('precio', 0),
+                'ubicacion': bien.get('ubicacion', 'No disponible'),
+                'descripcion': bien.get('descripcion', 'No disponible'),
+                'habitaciones': bien.get('habitaciones', 0),
+                'banos': bien.get('banos', 0),
+                'imagen_url': bien.get('imagen_url', 'No disponible')
+            })
         return bienes_raices, 200
 
     @api.doc(description="Agregar un nuevo bien raíz")
@@ -139,7 +148,7 @@ class BienesRaices(Resource):
 
         try:
             # Obtener el nombre del archivo de imagen
-            file_name = imagen.filename
+            file_name = secure_filename(imagen.filename)
             content_type = imagen.content_type
 
             # Crear una referencia en el bucket de Firebase Storage
@@ -148,8 +157,11 @@ class BienesRaices(Resource):
             # Subir el archivo de imagen al bucket
             blob.upload_from_file(imagen, content_type=content_type)
 
+            # Hacer que el archivo sea accesible públicamente
+            blob.make_public()
+
             # Obtener la URL pública de la imagen
-            imagen_url = blob.public_url
+            imagen_url = f"https://firebasestorage.googleapis.com/v0/b/{bucket.name}/o/{file_name}?alt=media"
 
             # Registrar el bien raíz en Firestore con la URL de la imagen
             doc_ref = db.collection('bienes_raices').add({
@@ -159,14 +171,13 @@ class BienesRaices(Resource):
                 'descripcion': args['descripcion'],
                 'habitaciones': args['habitaciones'],
                 'banos': args['banos'],
-                'imagen_url': imagen_url
+                'imagen_url': imagen_url  # Guardar la URL pública
             })
 
-            return {"message": "Bien raíz agregado", "id": doc_ref.id}, 201
+            return {"message": "Bien raíz agregado", "id": doc_ref.id, "imagen_url": imagen_url}, 201
 
         except Exception as e:
-            logging.error(f'Imagen recibida: {imagen.filename}, Content-Type: {imagen.content_type}')
-            return {"error": "Error al subir la imagen"}, 500
+            return {"error": str(e)}, 500
         
 @api.route('/bienes_raices/<id>')
 class BienRaizDetail(Resource):
