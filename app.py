@@ -56,24 +56,41 @@ class Login(Resource):
             user = auth.get_user_by_email(email)
             # Aquí podrías implementar la validación de la contraseña si es necesario
             session['user_id'] = user.uid
-            return {"message": "Inicio de sesión exitoso"}, 201
+
+            user_data = db.collection('user').document(user.uid).get()
+
+            if user_data.exists:
+                tipo_usuario = user_data.to_dict().get('tipo usuario')
+                return{"message": "Inicio de sesion exitoso", "email": email, "tipo_usuario":tipo_usuario}, 201
+            else:
+                return {"error": "El usuario no tiene datos adicionales"}, 404
         except Exception as e:
             return {"error": str(e)}, 401
 
 @api.route('/signup')
 class Signup(Resource):
-    @api.doc(description="Registrarse con email y contraseña")
+    @api.doc(description="Registrarse con email, contraseña y tipo de usuario")
     @api.expect(api.model('Signup', {
         'email': fields.String(required=True, description='Correo Electrónico del usuario'),
-        'password': fields.String(required=True, description='Contraseña del usuario')
+        'password': fields.String(required=True, description='Contraseña del usuario'),
+        'tipo_usuario': fields.String(required=True, description='Tipo de usuario vendedor o comprador')
     }))
     def post(self):
         email = request.json.get('email')
         password = request.json.get('password')
+        tipo_usuario = request.json.get('tipo_usuario')
+
+        if tipo_usuario not in ['vendedor', 'comprador']:
+            return {"error": "Rl tipo de usuario debe ser 'vendedor' o 'comprador'"}, 400
         try:
             user = auth.create_user(email=email, password=password)
+
+            db.collection('usuer').document(user.uid).set({
+                'email':email,
+                'tipo_usuario':tipo_usuario
+            })
             session['user_id'] = user.uid
-            return {"message": "Registro exitoso"}, 201
+            return {"message": "Registro exitoso", "tipo_usuario": tipo_usuario}, 201
         except Exception as e:
             return {"error": str(e)}, 400
 
