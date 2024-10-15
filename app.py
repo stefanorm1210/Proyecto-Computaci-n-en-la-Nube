@@ -3,6 +3,7 @@ from flask_restx import Api, Resource, fields
 from flask_cors import CORS  # Importa CORS
 import firebase_admin
 from firebase_admin import credentials, firestore, auth, storage
+from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 import logging
 
@@ -21,11 +22,11 @@ api = Api(app, version='1.0', title='Bienes Raices API',
 #Inicializar Firebase
 
 cred = credentials.Certificate('config/bienesraicesapp-2082b-firebase-adminsdk-ouekj-8cc7711eb0.json')
-firebase_admin.initialize_app(cred, {'storageBucket':'firebase-adminsdk-ouekj@bienesraicesapp-2082b.iam.gserviceaccount.com'})
+firebase_admin.initialize_app(cred, {'storageBucket':'gs://bienesraicesapp-2082b.appspot.com'})
 
 #Inicializar Firestore
 db = firestore.client()
-bucket = storage.bucket()
+bucket = storage.bucket('bienesraicesapp-2082b.appspot.com')
 # Configuración de logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -105,6 +106,16 @@ class Signup(Resource):
 
 @api.route('/bienes_raices')
 class BienesRaices(Resource):
+    # Define el parser para permitir archivos
+    bien_raiz_parser = api.parser()
+    bien_raiz_parser.add_argument('nombre', type=str, required=True, help='Nombre del bien raíz')
+    bien_raiz_parser.add_argument('precio', type=float, required=True, help='Precio del bien raíz')
+    bien_raiz_parser.add_argument('ubicacion', type=str, required=True, help='Ubicación del bien raíz')
+    bien_raiz_parser.add_argument('descripcion', type=str, required=True, help='Descripción del bien raíz')
+    bien_raiz_parser.add_argument('habitaciones', type=int, required=True, help='Cantidad de habitaciones')
+    bien_raiz_parser.add_argument('banos', type=int, required=True, help='Cantidad de baños')
+    bien_raiz_parser.add_argument('imagen', type=FileStorage, location='files' ,required=True, help='Imagen del bien raíz')
+
     @api.marshal_list_with(bien_raiz_model)
     @api.doc(description="Obtener todos los bienes raíces")
     def get(self):
@@ -116,43 +127,47 @@ class BienesRaices(Resource):
             bien['id'] = doc.id
             bienes_raices.append(bien)
         return bienes_raices, 200
-    
-    @api.expect(bien_raiz_model)
+
     @api.doc(description="Agregar un nuevo bien raíz")
+    @api.expect(bien_raiz_parser)
     def post(self):
-        data = request.json
-        nombre = data.get('nombre')
-        precio = data.get('precio')
-        ubicacion = data.get('ubicacion')
-        descripcion = data.get('descripcion')  # Nueva propiedad
-        habitaciones = int(data.get('habitaciones'))  # Nueva propiedad
-        banos = int(data.get('banos'))  # Nueva propiedad
+        args = self.bien_raiz_parser.parse_args()
+        imagen = args['imagen']  # Obtener el archivo de imagen
 
-        #Verifica si se proporcionó una imagen
-        if 'imagen' not in request.files:
-            return {"message":"No se ha proporcionado ninguna imagen"}, 400
+        if imagen is None:
+            return {"error": "No se proporcionó ninguna imagen"}, 400
+
+        try:
+            # Obtener el nombre del archivo de imagen
+            file_name = imagen.filename
+            content_type = imagen.content_type
+
+            # Crear una referencia en el bucket de Firebase Storage
+            blob = bucket.blob(file_name)
+
+            # Subir el archivo de imagen al bucket
+            blob.upload_from_file(imagen, content_type=content_type)
+
+            # Obtener la URL pública de la imagen
+            imagen_url = blob.public_url
+
+            # Registrar el bien raíz en Firestore con la URL de la imagen
+            doc_ref = db.collection('bienes_raices').add({
+                'nombre': args['nombre'],
+                'precio': args['precio'],
+                'ubicacion': args['ubicacion'],
+                'descripcion': args['descripcion'],
+                'habitaciones': args['habitaciones'],
+                'banos': args['banos'],
+                'imagen_url': imagen_url
+            })
+
+            return {"message": "Bien raíz agregado", "id": doc_ref.id}, 201
+
+        except Exception as e:
+            logging.error(f'Imagen recibida: {imagen.filename}, Content-Type: {imagen.content_type}')
+            return {"error": "Error al subir la imagen"}, 500
         
-        imagen = request.file['imagen']
-        filename = secure_filename(imagen.filename)
-
-        # Sube la imagen a Firebase Storage
-        blob = bucket.blob(f'bienes_raices/{filename}')
-        blob.upload_from_file(imagen, content_type=imagen.content_type)
-
-        # Obtén la URL pública de la imagen
-        imagen_url = blob.public_url
-
-        doc_ref = db.collection('bienes_raices').add({
-            'nombre': nombre,
-            'precio': precio,
-            'ubicacion': ubicacion,
-            'descripcion': descripcion,  # Guardar la descripción
-            'habitaciones': habitaciones,  # Guardar cantidad de habitaciones
-            'banos': banos,  # Guardar cantidad de baños
-            'imagen_url': imagen_url  # URL de la imagen
-        })
-        return {"message": "Bien raíz agregado", "id": doc_ref[1].id}, 201
-
 @api.route('/bienes_raices/<id>')
 class BienRaizDetail(Resource):
     @api.expect(bien_raiz_model)
