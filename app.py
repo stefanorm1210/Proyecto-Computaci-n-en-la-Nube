@@ -34,6 +34,10 @@ bien_raiz_model = api.model('BienRaiz', {
     'nombre': fields.String(required=True, description = 'Nombre del bien raíz'),
     'precio':fields.Float(required=True, description = 'Precio del bien raíz'),
     'ubicacion': fields.String(required=True, description='Ubicación del bien raíz'),
+    'descripcion': fields.String(required=True, description='Descripción del bien raíz'),  # Nueva descripción
+    'habitaciones': fields.Integer(required=True, description='Cantidad de habitaciones'),  # Nueva propiedad
+    'banos': fields.Integer(required=True, description='Cantidad de baños'),  # Nueva propiedad
+    'imagen_url': fields.String(description='URL de la imagen del bien raíz')  # Campo existente
 })
 
 boleta_model = api.model('Boleta', {
@@ -120,11 +124,32 @@ class BienesRaices(Resource):
         nombre = data.get('nombre')
         precio = data.get('precio')
         ubicacion = data.get('ubicacion')
+        descripcion = data.get('descripcion')  # Nueva propiedad
+        habitaciones = int(data.get('habitaciones'))  # Nueva propiedad
+        banos = int(data.get('banos'))  # Nueva propiedad
+
+        #Verifica si se proporcionó una imagen
+        if 'imagen' not in request.files:
+            return {"message":"No se ha proporcionado ninguna imagen"}, 400
+        
+        imagen = request.file['imagen']
+        filename = secure_filename(imagen.filename)
+
+        # Sube la imagen a Firebase Storage
+        blob = bucket.blob(f'bienes_raices/{filename}')
+        blob.upload_from_file(imagen, content_type=imagen.content_type)
+
+        # Obtén la URL pública de la imagen
+        imagen_url = blob.public_url
 
         doc_ref = db.collection('bienes_raices').add({
             'nombre': nombre,
             'precio': precio,
-            'ubicacion': ubicacion
+            'ubicacion': ubicacion,
+            'descripcion': descripcion,  # Guardar la descripción
+            'habitaciones': habitaciones,  # Guardar cantidad de habitaciones
+            'banos': banos,  # Guardar cantidad de baños
+            'imagen_url': imagen_url  # URL de la imagen
         })
         return {"message": "Bien raíz agregado", "id": doc_ref[1].id}, 201
 
