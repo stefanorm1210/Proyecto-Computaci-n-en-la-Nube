@@ -60,7 +60,9 @@ class Login(Resource):
             user_data = db.collection('user').document(user.uid).get()
 
             if user_data.exists:
-                tipo_usuario = user_data.to_dict().get('tipo usuario')
+
+                
+                tipo_usuario = user_data.to_dict().get('tipo_usuario')
                 return{"message": "Inicio de sesion exitoso", "email": email, "tipo_usuario":tipo_usuario}, 201
             else:
                 return {"error": "El usuario no tiene datos adicionales"}, 404
