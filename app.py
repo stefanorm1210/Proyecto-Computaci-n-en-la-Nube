@@ -33,6 +33,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 #Modelos para Swagger
 bien_raiz_model = api.model('BienRaiz', {
+    'id': fields.String(required=True, description='ID del bien raíz'),
     'nombre': fields.String(required=True, description = 'Nombre del bien raíz'),
     'precio':fields.Float(required=True, description = 'Precio del bien raíz'),
     'ubicacion': fields.String(required=True, description='Ubicación del bien raíz'),
@@ -125,8 +126,9 @@ class BienesRaices(Resource):
 
         for doc in docs:
             bien = doc.to_dict()
-            bien['id'] = doc.id
+            bien['id'] = doc.id  # Obtiene el ID de Firestore
             bienes_raices.append({
+                'id': bien['id'],
                 'nombre': bien.get('nombre', 'No disponible'),
                 'precio': bien.get('precio', 0),
                 'ubicacion': bien.get('ubicacion', 'No disponible'),
@@ -174,7 +176,9 @@ class BienesRaices(Resource):
                 'imagen_url': imagen_url  # Guardar la URL pública
             })
 
-            return {"message": "Bien raíz agregado", "id": doc_ref.id, "imagen_url": imagen_url}, 201
+            bien_id = doc_ref.id  # Obtener el ID del documento creado
+
+            return {"message": "Bien raíz agregado", "id": bien_id, "imagen_url": imagen_url}, 201
 
         except Exception as e:
             return {"error": str(e)}, 500
