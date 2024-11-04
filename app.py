@@ -5,6 +5,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore, auth, storage
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
+from datetime import datetime
 import logging
 
 #Inicializar la app de Flask
@@ -41,6 +42,17 @@ bien_raiz_model = api.model('BienRaiz', {
     'habitaciones': fields.Integer(required=True, description='Cantidad de habitaciones'),  # Nueva propiedad
     'banos': fields.Integer(required=True, description='Cantidad de baños'),  # Nueva propiedad
     'imagen_url': fields.String(required=False, description='URL de la imagen del bien raíz')  # Campo existente
+})
+
+venta_model = api.model('Venta', {
+    'bien_raiz_id': fields.String(required=True, description='ID del bien raíz vendido'),
+    'comprador_id': fields.String(required=True, description='ID del comprador'),
+    'vendedor_id': fields.String(required=True, description='ID del vendedor'),
+    'fecha_venta': fields.String(required=False, description='Fecha de la Venta'),
+    'precio_final': fields.Float(required=True, description='Precio de venta'),
+    'estado': fields.String(required=True, description='Estado de la venta (ej. "pendiente", "completada", "cancelada")'),
+    'forma_pago': fields.String(required=True, description='Método de pago (ej. "efectivo", "transferencia bancaria", "financiamiento")'),
+    'notas': fields.String(required=False, description='Notas adicionales sobre la venta')
 })
 
 boleta_model = api.model('Boleta', {
@@ -240,6 +252,71 @@ class DescargarBoleta(Resource):
         url = blob.generate_signed_url(expiration=3600)
 
         return {"url": url}, 200
+
+@api.route('/generar_venta')
+class GenerarVenta(Resource):
+    venta_parser = api.parser()
+    venta_parser.add_argument('bien_raiz_id', type=str, required=True, help='ID del bien raíz vendido')
+    venta_parser.add_argument('comprador_id', type=str, required=True, help='ID del comprador')
+    venta_parser.add_argument('vendedor_id', type=str, required=True, help='ID del vendedor')
+    venta_parser.add_argument('fecha_venta', type=str, help='Fecha de la venta')
+    venta_parser.add_argument('precio_final', type=float, required=True, help='Precio de venta')
+    venta_parser.add_argument('estado', type=str, required=True, choices=('pendiente', 'completada', 'cancelada'), help='Estado de la venta (ej. "pendiente", "completada", "cancelada")')
+    venta_parser.add_argument('forma_pago', type=str, required=True, choices=('efectivo', 'transferencia bancaria', 'financiamiento'), help='Método de pago (ej. "efectivo", "transferencia bancaria", "financiamiento")')
+    venta_parser.add_argument('notas', type=str, help='Notas adicionales sobre la venta')
+
+    @api.expect(venta_parser)
+    @api.doc(description="Generar una nueva venta de un bien raíz")
+    def post(self):
+        # Obtener los datos de la venta desde el parser
+        args = self.venta_parser.parse_args()
+        bien_raiz_id = args['bien_raiz_id']
+        comprador_id = args['comprador_id']
+        vendedor_id = args['vendedor_id']
+        precio_final = args['precio_final']
+        estado = args['estado']
+        forma_pago = args['forma_pago']
+        notas = args.get('notas')
+        fecha_venta = args.get('fecha_venta', datetime.now().isoformat())  # Usar la fecha actual si no se proporciona
+
+        # Verificar que el bien raíz, comprador y vendedor existen en Firestore
+        bien_raiz_ref = db.collection('bienes_raices').document(bien_raiz_id)
+        comprador_ref = db.collection('user').document(comprador_id)
+        vendedor_ref = db.collection('user').document(vendedor_id)
+
+        try:
+            # Comprobar si existen los documentos
+            if not bien_raiz_ref.get().exists:
+                return {"error": "El bien raíz especificado no existe"}, 404
+            if not comprador_ref.get().exists:
+                return {"error": "El comprador especificado no existe"}, 404
+            if not vendedor_ref.get().exists:
+                return {"error": "El vendedor especificado no existe"}, 404
+
+            # Registrar la venta en la colección de ventas
+            venta_data = {
+                'bien_raiz_id': bien_raiz_id,
+                'comprador_id': comprador_id,
+                'vendedor_id': vendedor_id,
+                'precio_final': precio_final,
+                'estado': estado,
+                'forma_pago': forma_pago,
+                'notas': notas,
+                'fecha_venta': fecha_venta,
+                'fecha_creacion': datetime.now().isoformat(),  # Marca la fecha de creación
+                'fecha_actualizacion': datetime.now().isoformat()  # Marca la fecha de actualización
+            }
+
+            # Registrar la venta en Firestore
+            venta_ref = db.collection('ventas').add(venta_data)  # Aquí se añade el documento
+
+            # Obtener el ID de la venta creada
+            venta_id = venta_ref.id  # Ahora esto debería funcionar correctamente
+
+            return {"message": "Venta registrada exitosamente", "venta_id": venta_id}, 201
+
+        except Exception as e:
+            return {"error": f"Ocurrió un error al registrar la venta: {str(e)}"}, 500
 
 if __name__ == '__main__':
     app.run(debug=True)
