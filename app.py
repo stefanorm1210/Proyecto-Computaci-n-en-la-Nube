@@ -111,7 +111,8 @@ class Signup(Resource):
             db.collection('user').document(user.uid).set({
                 'email':email,
                 'nombre_completo': nombre_completo,
-                'tipo_usuario':tipo_usuario
+                'tipo_usuario':tipo_usuario,
+                'password': password
             })
             session['user_id'] = user.uid
             return {"message": "Registro exitoso", "tipo_usuario": tipo_usuario}, 201
