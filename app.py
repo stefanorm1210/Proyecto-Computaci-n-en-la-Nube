@@ -12,7 +12,7 @@ app = Flask(__name__)
 app.secret_key = '121003'
 
 # Configurar CORS
-CORS(app, resources={r"/*": {"origins": "http://localhost:3000", "supports_credentials": True}})
+CORS(app, resources={r"/*": {"origins": "http://localhost:5173", "supports_credentials": True}})
 
 #Inicializar API con Flask-RESTX
 api = Api(app, version='1.0', title='Bienes Raices API', 
@@ -21,7 +21,7 @@ api = Api(app, version='1.0', title='Bienes Raices API',
 
 #Inicializar Firebase
 
-cred = credentials.Certificate('config/bienesraicesapp-2082b-firebase-adminsdk-ouekj-8cc7711eb0.json')
+cred = credentials.Certificate('config/bienesraicesapp-2082b-firebase-adminsdk-ouekj-94145224b4.json')
 firebase_admin.initialize_app(cred, {'storageBucket':'gs://bienesraicesapp-2082b.appspot.com'})
 
 #Inicializar Firestore
